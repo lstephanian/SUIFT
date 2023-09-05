@@ -1,35 +1,34 @@
-
+// SPDX-License-Identifier: GPL-3.0
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/ERC1155.sol";
+import "./Queue.sol"; //Using Erick Dagenais' priority queue implementation
 
-contract SimpleAuction is ERC1155Holder {
-// SPDX-License-Identifier: GPL-3.0
+contract BatchAuction is ERC1155Holder {
+    using Queue for QueueStorage.QueueStorage;
 
     // Parameters of the auction
-    uint maxNumBids = 100;
+    QueueStorage.QueueStorage public bidQueue;
+
     address payable public beneficiary;
-    address[] beneficiaries;
     uint public auctionEndTime;
-    uint[] private bidList;
+    uint[] private bids;
 
     // Current state of the auction.
-    address public highestBidder;
     uint public current_min;
 
     // Allowed withdrawals of previous bids
-    mapping(address => uint) pendingReturns;
+    mapping(address => uint) beneficiaries;
 
     // Set to true at the end, disallows any change.
-    // By default initialized to `false`.
     bool ended;
 
     // Events that will be emitted on changes.
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
 
-    /// Create a simple auction with `_biddingTime`
+    /// Create an english batched auction with `_biddingTime`
     /// seconds bidding time on behalf of the
     /// beneficiary address `_beneficiary`.
     constructor(
@@ -38,6 +37,7 @@ contract SimpleAuction is ERC1155Holder {
     ) {
         beneficiary = _beneficiary;
         auctionEndTime = block.timestamp + _biddingTime;
+        bidQueue.initialize();
     }
 
     /// Bid on the auction with the value sent
@@ -53,8 +53,8 @@ contract SimpleAuction is ERC1155Holder {
         );
 
         //if the current number of bids is less than the set max, then add that bid to bidlist and bidder info to mapping
-        if (bidList.length < maxNumBids) {
-            bidList[].push(msg.value);
+        if (bids.length < maxNumBids) {
+            bids[].push(msg.value);
             beneficiaries[beneficiary] += msg.value;
         }
 
@@ -65,9 +65,9 @@ contract SimpleAuction is ERC1155Holder {
             uint b;
 
             //find lowest bid
-            for (b = 0; b < bidList.length; b++){
-                if (bidList[b] < lowest) {
-                    lowest = bidList[b];
+            for (b = 0; b < bids.length; b++){
+                if (bids[b] < lowest) {
+                    lowest = bids[b];
                 }
             }
 
@@ -78,15 +78,12 @@ contract SimpleAuction is ERC1155Holder {
             );
 
             // update bidList and beneficiary mapping info
-            delete bidList[b]; // is b still lowest
-            bidList.push(msg.value);
+            delete bids[b]; // is b still lowest
+            bids.push(msg.value);
             beneficiaries[beneficiary] += msg.value;
             //search beneficiaries for that bid and remove beneficiary 
 
         }
-
-
-        
 
         //pull current_min bid value
         require(
