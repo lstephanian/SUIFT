@@ -96,6 +96,7 @@ contract BatchAuction is ERC1155Holder {
         emit AuctionEnded(highestBidder, highestBid);
 
         //3. Transfer tickets
-        //TODO: transfer 1155 token to bidders
+        //TODO: transfer 1155 token (the ticket) to bidders
     }
 }
+//TODO: create contract for pulling attendance info off chain and using that to distribute pro-rata amounts to participants
