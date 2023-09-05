@@ -3,7 +3,7 @@ two ticketmaster employees engaging in a top secret project
 
 
 walkthrough:
-1. Set minimum ticket price 
+1. Ticket seller sets minimum ticket price 
 2. Require that the block time is less than auction end time
 3. Allow bids
     1. Require bid is equal to or higher than minimum ticket price
