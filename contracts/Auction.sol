@@ -6,7 +6,7 @@ pragma solidity >=0.7.0 <0.9.0;
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/ERC1155.sol";
 import "./Queue.sol"; //Using Erick Dagenais' priority queue implementation
 
-contract BatchAuction is ERC1155Holder {
+contract Auction is ERC1155Holder {
     using Queue for QueueStorage.QueueStorage; // using queue lib
     QueueStorage.QueueStorage public bidQueue;
 
