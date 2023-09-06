@@ -3,7 +3,7 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "./Queue.sol"; //Using Erick Dagenais' priority queue implementation
 
 contract Auction is ERC1155Holder {
