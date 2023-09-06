@@ -4,14 +4,20 @@ pragma solidity >=0.7.0 <0.9.0;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
+import "@offchaindata/attendeeListOracle.txt";
 
 contract Auction is ERC1155Holder {
+    //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
+    //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
+    mapping(address ticketHolder => bool attended) private attendeeOracle;
+    attendeeOracle[msg.sender] = true;
+
     uint public immutable AUCTION_START_TIME;
     uint public immutable AUCTION_END_TIME;
+    uint public immutable REBATE_END_TIME;
     bool public ended;
     uint capitalSpentInAuction;
     bool attended = false;
-    uint REBATE_END_TIME; //need to have an end time because for beneficiaries who buy tickets and do not attend, the rebate will simply be burned
     struct Bid{
         address beneficiary;
         uint256 amount;
@@ -20,24 +26,27 @@ contract Auction is ERC1155Holder {
 
     Bid[] private bids;
     mapping(address beneficiary => uint256 refund) private bidRefunds;
+    mapping(address winner => uint winningBid) private winners;
 
     event BidEntered(address indexed beneficiary, uint256 indexed amount);
     event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
-
 
     // Events that will be emitted on changes.
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
     
-    constructor(uint256 _startTime, uint _biddingTime, uint _ticketSupply, uint _ticketReservePrice) 
+    constructor(uint256 _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) 
     {
         require(_startTime > 0, 'Must provide start time');
         require(_endTime > 0, 'Must provide end time');
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
         
+
+        address owner = msg.sender;
         AUCTION_START_TIME = _startTime;
-        AUCTION_END_TIME = _startTime + _biddingTime;
+        AUCTION_END_TIME = _startTime + _biddingLength;
+        REBATE_END_TIME = startTime + _biddingLength + _rebateLength;
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
     }
@@ -59,21 +68,22 @@ contract Auction is ERC1155Holder {
         //check whether number of bids is less than total ticket supply
         if (TICKET_SUPPLY > bids.length) {
             
-            //add bid to bid struct
+            //add bid to bid struct and bidder to winner map
             bids.push(Bid);
+            winners[msg.sender] = msg.value;
 
             //emit event indicating a bid has been placed
             emit BidEntered(msg.sender, msg.value);
+            emit MinBidIncreased(msg.sender, msg.value);
 
             return;
+
         }
         _replaceLowestBid(bid, minBidIndex);
-
-        emit MinBidIncreased(msg.sender, msg.value);
     }
 
     //Enable withdrawals for bids that have been overbid
-    function withdraw() external returns (bool) {
+    function withdrawOverbid() external returns (bool) {
         uint256 amount = bidRefunds[msg.sender];
         require(amount != 0, 'Nothing to withdraw');
 
@@ -87,16 +97,20 @@ contract Auction is ERC1155Holder {
     }
 
 
-    /// End the auction and send the highest bid to the beneficiary.
+    /// End the auction (in case you need to early)
     function auctionEnd() public {
+        require(msg.sender == owner, "You need to be the owner of the contract to do this");
         require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
         require(!ended, "auctionEnd has already been called.");
 
         ended = true;
         emit AuctionEnded();
 
-        //3. Transfer tickets
-        //TODO: transfer 1155 token (the ticket) to bidders
+        //TODO: Send 1155 NFTs to winners
+    }
+
+    function _isAuctionActive() internal view returns (bool) {
+        return ended == false || block.timestamp > AUCTION_START_TIME && block.timestamp < AUCTION_END_TIME;
     }
 
     //replaces one of the lowest accepted bids in the auction with this latest bid and adds a refund to the beneficiary who was overbid
@@ -105,6 +119,10 @@ contract Auction is ERC1155Holder {
         Bid storage currentBid = bids[minBidIndex];
         bidRefunds[currentBid.beneficiary] += currentBid.amount;
         currentBid = bid;
+        
+        //add address of this bid to the winners list
+        winners[currentBid.winner] = currentBid.winningBid;
+
     }
 
     //loops through index of bids and if the bid amount is greater than the minimum bid amount, then add it to the bidindex
@@ -120,37 +138,55 @@ contract Auction is ERC1155Holder {
         }
     }
 
-
-   
-
-    
-    function attendedConcert(address participant) public returns(bool) {
-        // check if address attended concert
-
-        // return(beneficiaryMapping[participant])
+    function _wonAuction(address participant) private returns(bool){
+        require(_isAuctionActive() == false, "Auction still ongoing");
+        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");   
+        if(winners[ticketHolder]){
+            return(true);
+        }
     }
 
-    function _calcProRata(address participant) private returns(uint){
-        //for x in [bidarray]:
-            //capitalSpentInAuction += x
-        // uint delta = capitalSpentInAuction - Auction.TICKET_SUPPLY * Auction.TICKET_RESERVE_PRICE
-
-        // uint proRata = beneficiaryMapping[participant] - Auction.TICKET_RESERVE_PRICE
-    }
-    function distributeRebate(address participant) public {
-        require(Auction.ended, "The auction is not over");
-        require(ended = false, "The rebate period is over");
-        require(attended = true, "You did not attend the event"); //determine whether they attended off-chain
-
-        //if participant was at the event then allow them to withdraw their pro-rata
+    function _attendedConcert(address participant) private returns(bool) {
+        require(_isAuctionActive() == false, "Auction still ongoing");
+        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
+        require(_wonAuction(participant), "Participant did not win Auction";)
+        if(attendeeOracle[msg.sender] == true){
+            return(true)
+        }
     }
 
-    function burnRebate() public{
-        require(Auction.ended, "The auction is not over");
-        require(ended, "The rebate period is not over");
-        require(attended = false, "Participant did attend the event");
+    function _isRebatePeriod() private returns(bool){
+        require(_isAuctionActive() == false, "Auction still ongoing");
+        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
         
-        //if participant was not at event then burn their rebate
+        if(block.timestamp <= REBATE_END_TIME && block.timestamp >= AUCTION_END_TIME) {
+            return(true)
+        }
+    }
+
+    //Enable withdrawals for bids that have been overbid
+    function rebateWithdraw() external returns (bool) {
+        require(_isRebatePeriod(), "It's not rebate period");
+        require(_attendedConcert(msg.sender), "You did not attend the event");
+
+
+        //calculate how much rebate participants get
+        uint delta = winner[participant] - TICKET_RESERVE_PRICE;
+
+        (bool success,) = payable(msg.sender).call{ value: delta }('');
+        require(success);
+
+        return(success);
+        emit BitRefundReceived(msg.sender, amount);        
+    }
+    
+    function burnRebate(address participant) private{
+        require(msg.sender == owner, "You need to be the owner of the contract to do this");
+        require(_isRebatePeriod(), "It's not rebate period");
+        require(_attendedConcert(), "You did not attend the event");
+
+        burnAmt = winner[participant];
+        Burn(msg.sender, burnAmt);
     }
 }
 
