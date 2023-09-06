@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity >=0.7.0 <0.9.0;
 
 import { SimpleAuction } from './Auction.sol';
@@ -17,7 +19,7 @@ contract AuctionFactory {
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
 
-    function allAuctions() constant returns (address[]) {
+    function allAuctions() returns (address[]) {
         return auctions;
     }
 }
