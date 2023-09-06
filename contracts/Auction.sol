@@ -3,12 +3,15 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
 
 contract Auction is ERC1155Holder {
     uint public immutable AUCTION_START_TIME;
     uint public immutable AUCTION_END_TIME;
     bool public ended;
+    uint capitalSpentInAuction;
+    bool attended = false;
+    uint REBATE_END_TIME; //need to have an end time because for beneficiaries who buy tickets and do not attend, the rebate will simply be burned
     struct Bid{
         address beneficiary;
         uint256 amount;
@@ -32,14 +35,14 @@ contract Auction is ERC1155Holder {
         require(_endTime > 0, 'Must provide end time');
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
-
+        
         AUCTION_START_TIME = _startTime;
         AUCTION_END_TIME = _startTime + _biddingTime;
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
-        ended = false;
     }
-
+    
+    //Note: block.timestamp could be manipulated
     function bid() external payable {
         require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
         require(block.timestamp <= AUCTION_END_TIME, "The auction has ended");
@@ -108,12 +111,46 @@ contract Auction is ERC1155Holder {
     function _minBidIndex() internal view returns (uint256 minIndex) {
         uint minAmount;
         for(uint256 i; i < bids.length; i++) {
-        Bid storage bid = bids[i];
+            Bid storage bid = bids[i];
 
-        if (bid.amount < minAmount || minAmount == 0) {
-                minIndex = i;
-                minAmount = bid.amount;
+            if (bid.amount < minAmount || minAmount == 0) {
+                    minIndex = i;
+                    minAmount = bid.amount;
+            }
         }
+    }
+
+
+   
+
+    
+    function attendedConcert(address participant) public returns(bool) {
+        // check if address attended concert
+
+        // return(beneficiaryMapping[participant])
+    }
+
+    function _calcProRata(address participant) private returns(uint){
+        //for x in [bidarray]:
+            //capitalSpentInAuction += x
+        // uint delta = capitalSpentInAuction - Auction.TICKET_SUPPLY * Auction.TICKET_RESERVE_PRICE
+
+        // uint proRata = beneficiaryMapping[participant] - Auction.TICKET_RESERVE_PRICE
+    }
+    function distributeRebate(address participant) public {
+        require(Auction.ended, "The auction is not over");
+        require(ended = false, "The rebate period is over");
+        require(attended = true, "You did not attend the event"); //determine whether they attended off-chain
+
+        //if participant was at the event then allow them to withdraw their pro-rata
+    }
+
+    function burnRebate() public{
+        require(Auction.ended, "The auction is not over");
+        require(ended, "The rebate period is not over");
+        require(attended = false, "Participant did attend the event");
+        
+        //if participant was not at event then burn their rebate
     }
 }
 
