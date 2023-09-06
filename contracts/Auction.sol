@@ -100,3 +100,4 @@ contract Auction is ERC1155Holder {
     }
 }
 //TODO: create contract for pulling attendance info off chain and using that to distribute pro-rata amounts to participants
+//TODO: need to implement onERC1155Received() https://docs.openzeppelin.com/contracts/3.x/api/token/erc1155#IERC1155Receiver-onERC1155Received-address-address-uint256-uint256-bytes-

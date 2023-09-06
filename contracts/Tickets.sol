@@ -11,9 +11,10 @@ contract Tickets is ERC1155 {
     uint256 public constant NOSEBLEED = 3;
 
     constructor() ERC1155("https://copper-impossible-nightingale-714.mypinata.cloud/ipfs/QmT3qNGpB4kAxzn2nNJZ75kqf29gBQ2TizQv4GXb8SBe9s/{id}.json") {
-        _mint(msg.sender, FLOOR_SEAT, 250, "floorseats");
-        _mint(msg.sender, FRONT_SECTION, 250, "frontsection");
-        _mint(msg.sender, MIDDLE_SECTION, 250, "middlesection");
-        _mint(msg.sender, NOSEBLEED, 250, "nosebleeds"); 
+        _mint(msg.sender, FLOOR_SEAT, 250, "");
+        _mint(msg.sender, FRONT_SECTION, 250, "");
+        _mint(msg.sender, MIDDLE_SECTION, 250, "");
+        _mint(msg.sender, NOSEBLEED, 250, ""); 
     }
+    
 }
