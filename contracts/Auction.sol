@@ -3,22 +3,24 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
-import "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
-import "@offchaindata/attendeeListOracle.txt";
-import { Tickets } from './Ticketes.sol';
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { Tickets } from './Tickets.sol';
 
 contract Auction is ERC1155Holder {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
     //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
-    mapping(address ticketHolder => bool attended) private attendeeOracle;
-    attendeeOracle[msg.sender] = true;
+    mapping(address  => bool) private attendeeOracle;
 
     uint public immutable AUCTION_START_TIME;
     uint public immutable AUCTION_END_TIME;
     uint public immutable REBATE_END_TIME;
+    uint public immutable TICKET_RESERVE_PRICE;
+    uint public immutable TICKET_SUPPLY;
+    uint public immutable AUCTION_TICKETS_TYPE; 
     bool public ended;
     uint capitalSpentInAuction;
     bool attended = false;
+    address owner; 
     struct Bid{
         address beneficiary;
         uint256 amount;
@@ -39,20 +41,25 @@ contract Auction is ERC1155Holder {
     constructor(uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) 
     {
         require(_startTime > 0, 'Must provide start time');
-        require(_endTime > 0, 'Must provide end time');
+        require(_biddingLength > 0, 'Must provide bidding length');
+        require(_rebateLength > 0, 'Must provide rebate length');
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
         
 
-        address owner = msg.sender;
-        AUCTION_TICKETS_TYPE = _auctionTicketsId
+        owner = msg.sender;
+        AUCTION_TICKETS_TYPE = _auctionTicketsId;
         AUCTION_START_TIME = _startTime;
         AUCTION_END_TIME = _startTime + _biddingLength;
-        REBATE_END_TIME = startTime + _biddingLength + _rebateLength;
+        REBATE_END_TIME = AUCTION_END_TIME + _rebateLength;
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
 
+        //mint the specific 1155 tickets
         Tickets.mint(_auctionTicketsId, _ticketSupply);
+
+        //adding msg.sender to the event attendee list
+        attendeeOracle[msg.sender] = true;
     }
     
     //Note: block.timestamp could be manipulated
@@ -77,8 +84,8 @@ contract Auction is ERC1155Holder {
             winners[msg.sender] = msg.value;
 
             //emit event indicating a bid has been placed
-            emit BidEntered(msg.sender, msg.value);
-            emit MinBidIncreased(msg.sender, msg.value);
+            // emit BidEntered(msg.sender, msg.value);
+            // emit MinBidIncreased(msg.sender, msg.value);
 
             return;
 
@@ -104,7 +111,7 @@ contract Auction is ERC1155Holder {
     /// End the auction (in case you need to early)
     function auctionEnd() public {
         require(msg.sender == owner, "You need to be the owner of the contract to do this");
-        require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
+        require(block.timestamp >= AUCTION_END_TIME, "Auction not yet ended.");
         require(!ended, "auctionEnd has already been called.");
 
         ended = true;
@@ -119,7 +126,7 @@ contract Auction is ERC1155Holder {
 
     //replaces one of the lowest accepted bids in the auction with this latest bid and adds a refund to the beneficiary who was overbid
     //Note: this could be improved by looping through timestamps and determining who was the most recent lowest bid
-    function _replaceLowestBid(Bid bid, uint256 minBidIndex) internal {
+    function _replaceLowestBid(Bid storage bid, uint256 minBidIndex) internal {
         Bid storage currentBid = bids[minBidIndex];
         bidRefunds[currentBid.beneficiary] += currentBid.amount;
         currentBid = bid;
@@ -145,7 +152,7 @@ contract Auction is ERC1155Holder {
     function _wonAuction(address participant) private returns(bool){
         require(_isAuctionActive() == false, "Auction still ongoing");
         require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");   
-        if(winners[ticketHolder]){
+        if(winners[participant]){
             return(true);
         }
     }
@@ -153,9 +160,9 @@ contract Auction is ERC1155Holder {
     function _attendedConcert(address participant) private returns(bool) {
         require(_isAuctionActive() == false, "Auction still ongoing");
         require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
-        require(_wonAuction(participant), "Participant did not win Auction";)
-        if(attendeeOracle[msg.sender] == true){
-            return(true)
+        require(_wonAuction(participant), "Participant did not win Auction");
+        if(attendeeOracle[msg.sender]){
+            return(true);
         }
     }
 
@@ -164,15 +171,10 @@ contract Auction is ERC1155Holder {
         require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
         
         if(block.timestamp <= REBATE_END_TIME && block.timestamp >= AUCTION_END_TIME) {
-            return(true)
+            return(true);
         }
     }
     
-    //mint tickets
-    function mint(address account, uint id) {
-
-    }
-
     //Enable withdrawals for bids that have been overbid
     function rebateWithdraw() external returns (bool) {
         require(_isRebatePeriod(), "It's not rebate period");
@@ -180,13 +182,13 @@ contract Auction is ERC1155Holder {
 
 
         //calculate how much rebate participants get
-        uint delta = winner[participant] - TICKET_RESERVE_PRICE;
+        uint delta = winners[msg.sender] - TICKET_RESERVE_PRICE;
 
         (bool success,) = payable(msg.sender).call{ value: delta }('');
         require(success);
 
         return(success);
-        emit BitRefundReceived(msg.sender, amount);        
+        emit BitRefundReceived(msg.sender, delta);        
     }
     
     function burnRebate(address participant) private{
@@ -194,8 +196,11 @@ contract Auction is ERC1155Holder {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_attendedConcert(), "You did not attend the event");
 
-        burnAmt = winner[participant];
-        Burn(msg.sender, burnAmt);
+        uint burnAmt = winners[participant];
+        address burnAddy = 0x000000000000000000000000000000000000dEaD;
+
+        (bool sent, bytes memory data) = burnAddy.call{value: burnAmt}("");
+        require(sent, "Failed to send Ether");
     }
 }
 

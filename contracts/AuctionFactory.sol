@@ -26,32 +26,32 @@ contract AuctionFactory {
     event AuctionCreated(address auctionContract, address owner, uint numAuctions, address[] allAuctions);
 
     //create our 4 auctions
-    function createNosebleedAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
-        Auction newAuction = new Auction(noseBleedId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSuppl, noseBleedTicketPrice);
+    function createNosebleedAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+        Auction newAuction = new Auction(noseBleedId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSupply, noseBleedTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createMiddleRowAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+    function createMiddleRowAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
         Auction newAuction = new Auction(middleRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, middleRowTicketSupply, middleRowTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createFrontRowAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+    function createFrontRowAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
         Auction newAuction = new Auction(frontRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, frontRowTicketSupply, frontRowTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createFloorSeatAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+    function createFloorSeatAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
         Auction newAuction = new Auction(floorSeatId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, floorSeatTicketSupply, floorSeatTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
 
-    function allAuctions() returns (address[]) {
-        return auctions;
-    }
+    // function allAuctions() returns (address[]) {
+    //     return auctions;
+    // }
 }
