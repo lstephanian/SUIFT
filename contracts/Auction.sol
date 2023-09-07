@@ -5,6 +5,7 @@ pragma solidity >=0.7.0 <0.9.0;
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
 import "@offchaindata/attendeeListOracle.txt";
+import { Tickets } from './Ticketes.sol';
 
 contract Auction is ERC1155Holder {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
@@ -35,7 +36,7 @@ contract Auction is ERC1155Holder {
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
     
-    constructor(uint256 _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) 
+    constructor(uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) 
     {
         require(_startTime > 0, 'Must provide start time');
         require(_endTime > 0, 'Must provide end time');
@@ -44,11 +45,14 @@ contract Auction is ERC1155Holder {
         
 
         address owner = msg.sender;
+        AUCTION_TICKETS_TYPE = _auctionTicketsId
         AUCTION_START_TIME = _startTime;
         AUCTION_END_TIME = _startTime + _biddingLength;
         REBATE_END_TIME = startTime + _biddingLength + _rebateLength;
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
+
+        Tickets.mint(_auctionTicketsId, _ticketSupply);
     }
     
     //Note: block.timestamp could be manipulated
@@ -162,6 +166,11 @@ contract Auction is ERC1155Holder {
         if(block.timestamp <= REBATE_END_TIME && block.timestamp >= AUCTION_END_TIME) {
             return(true)
         }
+    }
+    
+    //mint tickets
+    function mint(address account, uint id) {
+
     }
 
     //Enable withdrawals for bids that have been overbid

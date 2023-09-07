@@ -17,32 +17,35 @@ contract AuctionFactory {
     uint public immutable middleRowTicketPrice = 0.75;
     uint public immutable frontRowTicketPrice = 1;
     uint public immutable floorSeatTicketPrice = 2;
-
+    uint public immutable noseBleedId = 3; 
+    uint public immutable middleRowId = 2;
+    uint public immutable frontRowId = 1;
+    uint public immutable floorSeatId = 0;
 
 
     event AuctionCreated(address auctionContract, address owner, uint numAuctions, address[] allAuctions);
 
     //create our 4 auctions
-    function createNosebleedAuction(uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
-        Auction newAuction = new Auction(AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSuppl, noseBleedTicketPrice);
+    function createNosebleedAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+        Auction newAuction = new Auction(noseBleedId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSuppl, noseBleedTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createMiddleRowAuction(uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
-        Auction newAuction = new Auction(AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, middleRowTicketSupply, middleRowTicketPrice);
+    function createMiddleRowAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+        Auction newAuction = new Auction(middleRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, middleRowTicketSupply, middleRowTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createFrontRowAuction(uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
-        Auction newAuction = new Auction(AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, frontRowTicketSupply, frontRowTicketPrice);
+    function createFrontRowAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+        Auction newAuction = new Auction(frontRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, frontRowTicketSupply, frontRowTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
     }
-    function createFloorSeatAuction(uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
-        Auction newAuction = new Auction(AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, floorSeatTicketSupply, floorSeatTicketPrice);
+    function createFloorSeatAuction(uint _auctionTicketsId, uint256 startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) {
+        Auction newAuction = new Auction(floorSeatId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, floorSeatTicketSupply, floorSeatTicketPrice);
         auctions.push(newAuction);
 
         AuctionCreated(newAuction, msg.sender, auctions.length, auctions);
