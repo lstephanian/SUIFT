@@ -14,7 +14,7 @@ contract Tickets is ERC1155, Ownable {
     constructor() ERC1155("https://copper-impossible-nightingale-714.mypinata.cloud/ipfs/QmT3qNGpB4kAxzn2nNJZ75kqf29gBQ2TizQv4GXb8SBe9s/{id}.json") { 
     }
 
-    function mint(uint id, uint amount) payable public {
+    function mint(uint id, uint amount) public {
         require(id == 0 || id == 1 || id == 3 || id == 4, "Token does not exist");
         _mint(msg.sender, id, amount, "");
     }
