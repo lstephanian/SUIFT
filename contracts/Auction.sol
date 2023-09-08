@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity ^0.8.8;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { Tickets } from './Tickets.sol';
+import "../libraries/Suave.sol";
 
 contract Auction is ERC1155Holder {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
