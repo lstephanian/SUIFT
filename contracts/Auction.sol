@@ -6,8 +6,10 @@ pragma solidity ^0.8.8;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { Tickets } from './Tickets.sol';
 import "../libraries/Suave.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Auction is ERC1155Holder {
+
+contract Auction is ERC1155Holder, Ownable {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
     //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
     mapping(address  => bool) private attendeeOracle;
@@ -19,10 +21,9 @@ contract Auction is ERC1155Holder {
     uint public immutable TICKET_RESERVE_PRICE;
     uint public immutable TICKET_SUPPLY;
     uint public immutable AUCTION_TICKETS_TYPE; 
-    bool public ended;
-    uint capitalSpentInAuction;
-    bool attended = false;
-    address owner; 
+    bool public ended = false;
+    uint private capitalSpentInAuction = 0;
+    bool public attended = false;
     struct Bid{
         address beneficiary;
         uint256 amount;
@@ -40,16 +41,13 @@ contract Auction is ERC1155Holder {
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
     
-    constructor(uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) 
-    {
+    constructor(uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) {
         require(_startTime > 0, 'Must provide start time');
         require(_biddingLength > 0, 'Must provide bidding length');
         require(_rebateLength > 0, 'Must provide rebate length');
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
         
-
-        owner = msg.sender;
         AUCTION_TICKETS_TYPE = _auctionTicketsId;
         AUCTION_START_TIME = _startTime;
         AUCTION_END_TIME = _startTime + _biddingLength;
@@ -112,8 +110,7 @@ contract Auction is ERC1155Holder {
 
 
     /// End the auction (in case you need to early)
-    function auctionEnd() public {
-        require(msg.sender == owner, "You need to be the owner of the contract to do this");
+    function auctionEnd() public onlyOwner {
         require(block.timestamp >= AUCTION_END_TIME, "Auction not yet ended.");
         require(!ended, "auctionEnd has already been called.");
 
@@ -194,8 +191,7 @@ contract Auction is ERC1155Holder {
         // emit BitRefundReceived(msg.sender, delta);        
     }
     
-    function burnRebate(address participant) private{
-        require(msg.sender == owner, "You need to be the owner of the contract to do this");
+    function burnRebate(address participant) private onlyOwner {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_attendedConcert(participant), "You did not attend the event");
 
