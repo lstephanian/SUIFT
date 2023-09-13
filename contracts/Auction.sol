@@ -9,6 +9,7 @@ import "../libraries/Suave.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
+
 contract Auction is ERC1155Holder, Ownable {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
     //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
@@ -21,9 +22,9 @@ contract Auction is ERC1155Holder, Ownable {
     uint public immutable TICKET_RESERVE_PRICE;
     uint public immutable TICKET_SUPPLY;
     uint public immutable AUCTION_TICKETS_TYPE; 
-    bool public ended = false;
-    uint private capitalSpentInAuction = 0;
-    bool public attended = false;
+    bool public ended;
+    uint private capitalSpentInAuction;
+    bool public attended;
     struct Bid{
         address beneficiary;
         uint256 amount;
@@ -57,7 +58,7 @@ contract Auction is ERC1155Holder, Ownable {
 
         //mint the specific 1155 tickets
         Tickets tickets = Tickets(TICKETS_ADDRESS);
-        tickets.mint(_auctionTicketsId, _ticketSupply);
+        // tickets.mint(_auctionTicketsId, _ticketSupply);
 
         //adding msg.sender to the event attendee list
         attendeeOracle[msg.sender] = true;
