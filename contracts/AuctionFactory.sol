@@ -2,11 +2,10 @@
 
 pragma solidity ^0.8.8;
 
-import { Auction } from './Auction.sol';
+import './Auction.sol';
 
 contract AuctionFactory {
-    // address[] public auctions;
-    Auction[] private auctions;
+    Auction[] public auctions;
     uint public immutable AUCTION_START_TIME = block.timestamp;
     uint public immutable AUCTION_LENGTH = 432000; //30 days
     uint public immutable REBATE_LENGTH = 432000; //60 days
@@ -26,32 +25,29 @@ contract AuctionFactory {
     event AuctionCreated(Auction auctionContract, address owner, uint numAuctions);
 
     //create our 4 auctions
-    function createNosebleedAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) public {
-        Auction newAuction = new Auction(noseBleedId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSupply, noseBleedTicketPrice);
-        auctions.push(newAuction);
+    function createAuctions() public {
+        //floor seats
+        Auction floorSeatAuction = new Auction(floorSeatId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, floorSeatTicketSupply, floorSeatTicketPrice);
+        auctions.push(floorSeatAuction);
+        emit AuctionCreated(floorSeatAuction, msg.sender, auctions.length);
 
-        emit AuctionCreated(newAuction, msg.sender, auctions.length);
-    }
-    function createMiddleRowAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) public {
-        Auction newAuction = new Auction(middleRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, middleRowTicketSupply, middleRowTicketPrice);
-        auctions.push(newAuction);
+        //front row seats
+        Auction frontRowAuction = new Auction(frontRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, frontRowTicketSupply, frontRowTicketPrice);
+        auctions.push(frontRowAuction);
+        emit AuctionCreated(frontRowAuction, msg.sender, auctions.length);
 
-        emit AuctionCreated(newAuction, msg.sender, auctions.length);
-    }
-    function createFrontRowAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) public {
-        Auction newAuction = new Auction(frontRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, frontRowTicketSupply, frontRowTicketPrice);
-        auctions.push(newAuction);
+        //middle row seats
+        Auction middleRowAuction = new Auction(middleRowId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, middleRowTicketSupply, middleRowTicketPrice);
+        auctions.push(middleRowAuction);
+        emit AuctionCreated(middleRowAuction, msg.sender, auctions.length);
 
-        emit AuctionCreated(newAuction, msg.sender, auctions.length);
-    }
-    function createFloorSeatAuction(uint _auctionTicketsId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice) public {
-        Auction newAuction = new Auction(floorSeatId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, floorSeatTicketSupply, floorSeatTicketPrice);
-        auctions.push(newAuction);
-
-        emit AuctionCreated(newAuction, msg.sender, auctions.length);
+        //nosebleed seats
+        Auction noseBleedAuction = new Auction(noseBleedId, AUCTION_START_TIME, AUCTION_LENGTH, REBATE_LENGTH, noseBleedTicketSupply, noseBleedTicketPrice);
+        auctions.push(noseBleedAuction);
+        emit AuctionCreated(noseBleedAuction, msg.sender, auctions.length);
     }
 
-    // function allAuctions() returns (address[]) {
-    //     return auctions;
-    // }
+    function allAuctions() public view returns (Auction[] memory) {
+        return auctions;
+    }
 }
