@@ -4,45 +4,46 @@ pragma solidity ^0.8.8;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/IERC1155Receiver.sol";
 import { Tickets } from './Tickets.sol';
 import "../libraries/Suave.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-
-
 contract Auction is ERC1155Holder, Ownable {
     //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
     //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
-    mapping(address  => bool) private attendeeOracle;
-
-    address public immutable TICKETS_ADDRESS = 0x55eBc20b2c938cfccfFEe1707B7604fB3C8703E0; //right now this is me
+    mapping(address  => bool) private attendees;
+    uint public immutable TICKET_ADDRESS;
     uint public immutable AUCTION_START_TIME;
     uint public immutable AUCTION_END_TIME;
     uint public immutable REBATE_END_TIME;
     uint public immutable TICKET_RESERVE_PRICE;
     uint public immutable TICKET_SUPPLY;
     uint public immutable AUCTION_TICKETS_TYPE; 
-    bool public ended;
-    uint private capitalSpentInAuction;
-    bool public attended;
+    bool public ended = false;
+    uint private capitalSpentInAuction = 0;
+    bool public attended = false;
     struct Bid{
         address beneficiary;
         uint256 amount;
         uint256 timestamp;
     }
 
+    //list of bids we get
     Bid[] private bids;
     mapping(address beneficiary => uint256 refund) private bidRefunds;
+    //list of winners and their bid
     mapping(address winner => uint winningBid) private winners;
 
     event BidEntered(address indexed beneficiary, uint256 indexed amount);
     event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
 
     // Events that will be emitted on changes.
+    event AuctionCreated(address ticketsAddress, uint ticketId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice);
     event HighestBidIncreased(address bidder, uint amount);
-    event AuctionEnded(address winner, uint amount);
+    event AuctionEnded(mapping winners);
     
-    constructor(uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) {
+    constructor(address _ticketsAddress, uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) {
         require(_startTime > 0, 'Must provide start time');
         require(_biddingLength > 0, 'Must provide bidding length');
         require(_rebateLength > 0, 'Must provide rebate length');
@@ -55,17 +56,19 @@ contract Auction is ERC1155Holder, Ownable {
         REBATE_END_TIME = AUCTION_END_TIME + _rebateLength;
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
+        TICKET_ADDRESS = _ticketsAddress;
 
         //mint the specific 1155 tickets
-        Tickets tickets = Tickets(TICKETS_ADDRESS);
-        // tickets.mint(_auctionTicketsId, _ticketSupply);
+        Tickets tickets = Tickets(_ticketsAddress);
+        tickets.mint(_auctionTicketsId, _ticketSupply);
 
-        //adding msg.sender to the event attendee list
-        attendeeOracle[msg.sender] = true;
+        //emit event
+        emit AuctionCreated(_ticketsAddress, _auctionTicketsId, _startTime, _biddingLength, _rebateLength, _ticketSupply, _ticketReservePrice);
     }
     
     //Note: block.timestamp could be manipulated
     function bid() external payable {
+        require(Suave.isConfidential());
         require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
         require(block.timestamp <= AUCTION_END_TIME, "The auction has ended");
         require(ended == false, "The auction has ended");
@@ -82,15 +85,18 @@ contract Auction is ERC1155Holder, Ownable {
         if (TICKET_SUPPLY > bids.length) {
             
             //add bid to bid struct and bidder to winner map
+            //TODO: send this to confidential store - not sure if doing this right
+		    bytes memory bundleData = this.fetchBidConfidentialBundleData();
+            Suave.Bid memory suaveBid = Suave.newBid(decryptionCondition, bidAllowedPeekers, "suift:v0:eventbids");
+            Suave.confidentialStoreStore(suaveBid.id, "suift:v0:eventbids", bundleData);
+
+            //push the bid to the bids array
             bids.push(bid);
-            winners[msg.sender] = msg.value;
 
             //emit event indicating a bid has been placed
-            // emit BidEntered(msg.sender, msg.value);
-            // emit MinBidIncreased(msg.sender, msg.value);
+            emit BidEntered(msg.sender, msg.value);
 
             return;
-
         }
         _replaceLowestBid(bid, minBidIndex);
     }
@@ -106,7 +112,7 @@ contract Auction is ERC1155Holder, Ownable {
         require(success);
 
         return(success);
-        // emit BitRefundReceived(msg.sender, amount);
+        emit BitRefundReceived(msg.sender, amount);
     }
 
 
@@ -116,9 +122,13 @@ contract Auction is ERC1155Holder, Ownable {
         require(!ended, "auctionEnd has already been called.");
 
         ended = true;
-        // emit AuctionEnded();
+        // emit AuctionEnded(mapping winners);
 
-        //TODO: Send 1155 NFTs to winners
+        //iterate though bids and transfer a single token to each winner
+        for (uint i = 0 ; i < bids.length; i++){
+                safeTransferFrom(this.address, TICKET_ADDRESS, AUCTION_TICKETS_TYPE, 1, "");
+            }
+        } 
     }
 
     function _isAuctionActive() internal view returns (bool) {
@@ -131,10 +141,6 @@ contract Auction is ERC1155Holder, Ownable {
         Bid memory currentBid = bids[minBidIndex];
         bidRefunds[currentBid.beneficiary] += currentBid.amount;
         currentBid = bid;
-        
-        //add address of this bid to the winners list
-        winners[currentBid.beneficiary] = currentBid.amount;
-
     }
 
     //loops through index of bids and if the bid amount is greater than the minimum bid amount, then add it to the bidindex
@@ -150,30 +156,30 @@ contract Auction is ERC1155Holder, Ownable {
         }
     }
 
-    function _wonAuction(address participant) private returns(bool){
-        require(_isAuctionActive() == false, "Auction still ongoing");
-        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");   
-        if(winners[participant] != 0){
-            return(true);
+    function _wonAuction(address participant) private view returns(bool){   
+
+        // TODO: retrieve in confidential data store
+        // Suave.BidId[] memory mergedBidIds = abi.decode(Suave.confidentialStoreRetrieve(allShareMatchBids[j].id, "mevshare:v0:mergedBids"), (Suave.BidId[]));
+
+        if(ended == true){
+            if(winners[participant] != 0){
+                return(true);
+            }
+            else{
+                return(false);
+            }
         }
     }
 
-    function _attendedConcert(address participant) private returns(bool) {
-        require(_isAuctionActive() == false, "Auction still ongoing");
-        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
-        require(_wonAuction(participant), "Participant did not win Auction");
-        if(attendeeOracle[msg.sender]){
-            return(true);
-        }
+    function setterAttendConcert(address _participant) public onlyOwner {
+        attendees.push(_participant);
+    }
+    function _getterAttendedConcert(address participant) private view returns(bool) {
+        return(attendees[participant]);
     }
 
-    function _isRebatePeriod() private returns(bool){
-        require(_isAuctionActive() == false, "Auction still ongoing");
-        require(block.timestamp >= AUCTION_START_TIME, "The auction is not yet active");
-        
-        if(block.timestamp <= REBATE_END_TIME && block.timestamp >= AUCTION_END_TIME) {
-            return(true);
-        }
+    function _isRebatePeriod() private view returns(bool){
+        return ended && block.timestamp <= REBATE_END_TIME;
     }
     
     //Enable withdrawals for bids that have been overbid
@@ -181,25 +187,38 @@ contract Auction is ERC1155Holder, Ownable {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_attendedConcert(msg.sender), "You did not attend the event");
 
+        bytes32 encodedAddy = keccak256(abi.encode(bids.beneficiary));
+        for (uint i = 0 ; i < bids.length; i++){
+            if (encodedAddy == keccak256(abi.encode(msg.sender))){
+                uint amtPaid = bids[i].amount;
+            }
+        } 
 
         //calculate how much rebate participants get
-        uint delta = winners[msg.sender] - TICKET_RESERVE_PRICE;
+        uint delta = amtPaid - TICKET_RESERVE_PRICE;
 
         (bool success,) = payable(msg.sender).call{ value: delta }('');
         require(success);
 
         return(success);
-        // emit BitRefundReceived(msg.sender, delta);        
+        emit BitRefundReceived(msg.sender, delta);        
     }
     
     function burnRebate(address participant) private onlyOwner {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_attendedConcert(participant), "You did not attend the event");
 
-        uint burnAmt = winners[participant];
+        bytes32 encodedAddy = keccak256(abi.encode(bids.beneficiary));
+        for (uint i = 0 ; i < bids.length; i++){
+            if (encodedAddy == keccak256(abi.encode(msg.sender))){
+                uint burnAmt = bids[i].amount;
+            }
+        } 
+
+        //setting money on fire, fun
         address burnAddy = 0x000000000000000000000000000000000000dEaD;
 
-        (bool sent, bytes memory data) = burnAddy.call{value: burnAmt}("");
+        (bool sent,) = burnAddy.call{value: burnAmt}("");
         require(sent, "Failed to send Ether");
     }
 }
