@@ -4,14 +4,12 @@ pragma solidity ^0.8.8;
 
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "@openzeppelin/contracts/token/ERC1155/utils/IERC1155Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Receiver.sol";
 import { Tickets } from './Tickets.sol';
 import "../libraries/Suave.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Auction is ERC1155Holder, Ownable {
-    //this is a list of event goers that, post-auction end, you'd otherwise get from an oracle
-    //here, we will create a list of one address for examples sake and the contract will only know this address attended the event
     mapping(address  => bool) private attendees;
     uint public immutable TICKET_ADDRESS;
     uint public immutable AUCTION_START_TIME;
@@ -41,9 +39,8 @@ contract Auction is ERC1155Holder, Ownable {
     // Events that will be emitted on changes.
     event AuctionCreated(address ticketsAddress, uint ticketId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice);
     event HighestBidIncreased(address bidder, uint amount);
-    event AuctionEnded(mapping winners);
-    
-    constructor(address _ticketsAddress, uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) {
+
+    constructor (address _ticketsAddress, uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) public {
         require(_startTime > 0, 'Must provide start time');
         require(_biddingLength > 0, 'Must provide bidding length');
         require(_rebateLength > 0, 'Must provide rebate length');
@@ -115,14 +112,12 @@ contract Auction is ERC1155Holder, Ownable {
         emit BitRefundReceived(msg.sender, amount);
     }
 
-
     /// End the auction (in case you need to early)
     function auctionEnd() public onlyOwner {
         require(block.timestamp >= AUCTION_END_TIME, "Auction not yet ended.");
         require(!ended, "auctionEnd has already been called.");
 
         ended = true;
-        // emit AuctionEnded(mapping winners);
 
         //iterate though bids and transfer a single token to each winner
         for (uint i = 0 ; i < bids.length; i++){
