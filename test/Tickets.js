@@ -4,34 +4,34 @@ const { time } = require('@openzeppelin/test-helpers');
 require("@nomicfoundation/hardhat-toolbox");
 
 describe("Tickets", function () {
-  let owner;
-  let addr1;
-  let addr2;
-  let addr3;
-
-  beforeEach(async function () {
-    // const oneEth = ethers.BigNumber.from("1000000000000000000");
-    [owner, addr1, addr2, addr3] = await ethers.getSigners();
-    const currTime = await ethers.provider.getBlock(ethers.provider.getBlockNumber()).timestamp;
-    const auctionTicketsId = 0;
-    const startTime = 1; //.5 mins from last block
-    const biddingLength = 1; //2 mins
-    const rebateLength = 1; //2 mins
-    const ticketSupply = 1;
-    const ticketReservePrice = 1;
-    
-    const Auction = await ethers.getContractFactory("Auction");
-    const auction = await Auction.deploy(auctionTicketsId, startTime, biddingLength, rebateLength, ticketSupply, ticketReservePrice);
-    const contract = await auction.deployed();
-  });
+  describe("Auction", function () {
+    let owner;
+    let addr1;
+    let Tickets;
+    let tickets;
+    let ticketsContract;
   
-  it("should deploy successfully", async function () {
-    console.log("contract address", Auction.address);
+    beforeEach(async function () {
+      [owner, addr1] = await ethers.getSigners();
+  
+      Tickets = await ethers.getContractFactory("Tickets");
+      tickets = await Tickets.deploy();
+      ticketsContract = await tickets.deployed();
+    });
+  
+    it("should deploy successfully", async function () {
+      expect(await ticketsContract.address).to.be.properAddress;
+    });
+    it("should be able to mint tickets", async function () {
+      await ticketsContract.connect(owner).mint(addr1.address, 0, 1);
+      let ticketBalance = await ticketsContract.balanceOf(addr1.address, 0);
+      expect (ticketBalance).to.equal(1);
+    });
+    it("only owner should be able to mint", async function () {
+      await expect(ticketsContract.connect(addr1).mint(addr1.address, 0, 1)).to.be.reverted;
+    });
+    it("can only mint allowed ticket ids", async function () {
+      await expect(ticketsContract.connect(owner).mint(addr1.address, 4, 1)).to.be.reverted;
+    });
   });
-  // it("can't submit bid before auction is open", async function () {
-  //   await expect(
-  //     contract.connect(addr1).bid({from: owner, value: ethers.utils.parseUnits(oneEth.mul(4))})
-  //   ).to.be.revertedWith("The auction is not yet active");
-  // });
-
 });

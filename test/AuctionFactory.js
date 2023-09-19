@@ -1,40 +1,52 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, waffle} = require("hardhat");
 const { time } = require('@openzeppelin/test-helpers');
+const { assert } = require('chai');
+const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-chai-matchers");
+
 
 describe("AuctionFactory", function () {
   let owner;
+  let currTime;
+  let auctionFactory;
+  let AuctionFactory;
+  let auctionFactoryContract;
+  let Tickets;
+  let tickets;
+  let ticketsContract;
 
   beforeEach(async function () {
-    owner = await ethers.getSigners();
-    const currTime = await ethers.provider.getBlock(ethers.provider.getBlockNumber()).timestamp;
+    [owner] = await ethers.getSigners();
+    currTime = await ethers.provider.getBlock(ethers.provider.getBlockNumber()).timestamp;
 
     //deploy tickets contract and get address to use for deploying auction
-    const Tickets = await ethers.getContractFactory("Tickets");
-    const tickets = await Tickets.deploy();
-    const ticketsContract = await tickets.deployed();
+    Tickets = await ethers.getContractFactory("Tickets");
+    tickets = await Tickets.deploy();
+    ticketsContract = await tickets.deployed();
 
     //deploy auction factory contract
-    const AuctionFactory = await ethers.getContractFactory("Auction");
-    const auctionFactory = await AuctionFactory.deploy();
-    const auctionFactoryContract = await auctionFactory.deployed();
+    AuctionFactory = await ethers.getContractFactory("AuctionFactory");
+    auctionFactory = await AuctionFactory.deploy();
+    auctionFactoryContract = await auctionFactory.deployed();
   });
   
-  it('should deploy and set the owner correctly', async function () {
-    expect(await auctionFactoryContract.owner()).to.equal(owner.address);
+  it('should deploy correctly', async function () {
+    expect(await auctionFactoryContract.address).to.be.properAddress;
   });
   it('should deploy an auction', async function () {
-    auction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift floor seat auction", 0, currTime, 120, 120, 100, 100);
-    expect(auction.owner()).to.equal(owner.address);
+    auction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift floor seat auction", 0, 1, 1, 1, 1, 1);
+    auctionAddress = await auctionFactoryContract.allAuctions();
+    expect(auctionAddress).to.be.properAddress;
   });
-  it('should create an array of deployed auctions', async function () {
-    floorSeatsAuction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift floor seat auction", 0, currTime, 120, 120, 100, 400);
-    frontRowSeatsAuction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift front row seat auction", 1, currTime, 120, 120, 100, 300);
-    middleRowSeatsAuction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift middle row seat auction", 1, currTime, 120, 120, 100, 200);
-    nosebleedSeatsAuction = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift back row seat auction", 1, currTime, 120, 120, 100, 100);
+  it('should store deployed auctions in an array', async function () {
+    let a = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift floor seat auction", 0, 1, 1, 1, 1, 1);
+    let b = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift front row seat auction", 1, 1, 1, 1, 1, 1);
+    let c = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift middle row seat auction", 2, 1, 1, 1, 1, 1);
+    let d = await auctionFactoryContract.createAuction(ticketsContract.address, "t swift back row seat auction", 3, 1, 1, 1, 1, 1);
 
     //expect array to output 4 diff auctions
-    expect(length(auctionFactoryContract.allAuctions)).to.equal.apply(4);
+    expect((await auctionFactoryContract.allAuctions()).length).to.equal(4);
   });
 });

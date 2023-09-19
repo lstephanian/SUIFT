@@ -46,6 +46,7 @@ contract Auction is ERC1155Holder, Ownable {
         require(_rebateLength > 0, 'Must provide rebate length');
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
+        require(_auctionTicketsId == 0 || _auctionTicketsId == 1 || _auctionTicketsId == 2 || _auctionTicketsId == 3, "Token does not exist");
         
         AUCTION_TICKETS_TYPE = _auctionTicketsId;
         AUCTION_START_TIME = _startTime;
