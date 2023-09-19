@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: UNLICENSED
 
 pragma solidity ^0.8.8;
 
@@ -84,8 +84,8 @@ contract Auction is ERC1155Holder, Ownable {
             //add bid to bid struct and bidder to winner map
             //TODO: send this to confidential store - not sure if doing this right
 		    bytes memory bundleData = this.fetchBidConfidentialBundleData();
-            Suave.Bid memory suaveBid = Suave.newBid(decryptionCondition, bidAllowedPeekers, "suift:v0:eventbids");
-            Suave.confidentialStoreStore(suaveBid.id, "suift:v0:eventbids", bundleData);
+            // Suave.Bid memory suaveBid = Suave.newBid(decryptionCondition, bidAllowedPeekers, "suift:v0:eventbids");
+            // Suave.confidentialStoreStore(suaveBid.id, "suift:v0:eventbids", bundleData);
 
             //push the bid to the bids array
             bids.push(bid);
@@ -121,9 +121,8 @@ contract Auction is ERC1155Holder, Ownable {
 
         //iterate though bids and transfer a single token to each winner
         for (uint i = 0 ; i < bids.length; i++){
-                safeTransferFrom(this.address, TICKET_ADDRESS, AUCTION_TICKETS_TYPE, 1, "");
-            }
-        } 
+                this.safeTransferFrom(this.address, TICKET_ADDRESS, AUCTION_TICKETS_TYPE, 1, "");
+        }
     }
 
     function _isAuctionActive() internal view returns (bool) {
