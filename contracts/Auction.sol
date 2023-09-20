@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Auction is ERC1155Holder, Ownable {
     mapping(address  => bool) private attendees;
+    mapping(address => bool) private rebateWithdrawn;
+    mapping(address => bool) private rebateBurned;
     address public immutable TICKET_ADDRESS;
     uint public immutable AUCTION_START_TIME;
     uint public immutable AUCTION_END_TIME;
@@ -30,15 +32,14 @@ contract Auction is ERC1155Holder, Ownable {
     //list of bids we get
     Bid[] private bids;
     mapping(address beneficiary => uint256 refund) private bidRefunds;
-    //list of winners and their bid
-    mapping(address winner => uint winningBid) private winners;
-
-    event BidEntered(address indexed beneficiary, uint256 indexed amount);
-    event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
 
     // Events that will be emitted on changes.
+    event BidEntered(address indexed beneficiary, uint256 indexed amount);
+    event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
+    event MinBidUpdated(uint256 indexed amount);
+    event AuctionEnded(bool ended);
     event AuctionCreated(address ticketsAddress, uint ticketId, uint startTime, uint biddingLength, uint rebateLength, uint ticketSupply, uint ticketReservePrice);
-    event HighestBidIncreased(address bidder, uint amount);
+    event AttendedEvent(address eventgoer);
 
     constructor (address _ticketsAddress, uint _auctionTicketsId, uint _startTime, uint _biddingLength, uint _rebateLength, uint _ticketSupply, uint _ticketReservePrice) {
         require(_startTime > 0, 'Must provide start time');
@@ -68,10 +69,8 @@ contract Auction is ERC1155Holder, Ownable {
         require(ended == false, "The auction has ended");
         require(msg.value >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
 
-        uint minBidIndex = _minBidIndex();
+        (uint minBidIndex, uint minAmount) = _minBidIndex();
 
-        require(msg.value > minBidIndex, 'Your bid lower than the minimum');
-        
         //create a bid struct: beneficiary, bid amount, time of bid
         Bid memory bid = Bid(payable(msg.sender), msg.value, block.timestamp); 
 
@@ -92,6 +91,7 @@ contract Auction is ERC1155Holder, Ownable {
 
             return;
         }
+        require(msg.value >= minAmount, 'Your bid is lower than the minimum');
         _replaceLowestBid(bid, minBidIndex);
     }
 
@@ -103,30 +103,32 @@ contract Auction is ERC1155Holder, Ownable {
         bidRefunds[msg.sender] = 0;
 
         (bool success,) = payable(msg.sender).call{ value: amount }('');
-        require(success);
+        require(success);        
 
-        return(success);
         emit BitRefundReceived(msg.sender, amount);
+        return(success);
     }
 
-    /// End the auction (in case you need to early)
+    /// End the auction manually (in case you need to)
     function auctionEnd() public onlyOwner {
-        require(!ended, "auctionEnd has already been called.");
-
         //set auction ended to true
         ended = true;
+        emit AuctionEnded(ended);
+    }
 
+    function mintTicketsToWinners() public onlyOwner {
+        require(ended || block.timestamp > AUCTION_END_TIME, 'Auction is still ongoing');
         //mint the specific 1155 tickets
         Tickets tickets = Tickets(TICKET_ADDRESS);
 
         //iterate though bids and transfer a single token to each winner
         for (uint i = 0 ; i < bids.length; i++){
-            tickets.mint(bids[i].beneficiary, 1, 1);
+            tickets.mint(bids[i].beneficiary, AUCTION_TICKETS_TYPE, 1);
         }
     }
 
     function _isAuctionActive() internal view returns (bool) {
-        return ended == false || block.timestamp > AUCTION_START_TIME && block.timestamp < AUCTION_END_TIME;
+        return(ended==false || (block.timestamp > AUCTION_START_TIME && block.timestamp < AUCTION_END_TIME));
     }
 
     //replaces one of the lowest accepted bids in the auction with this latest bid and adds a refund to the beneficiary who was overbid
@@ -135,39 +137,26 @@ contract Auction is ERC1155Holder, Ownable {
         Bid memory currentBid = bids[minBidIndex];
         bidRefunds[currentBid.beneficiary] += currentBid.amount;
         currentBid = bid;
+        emit MinBidUpdated(currentBid.amount);
     }
 
-    //loops through index of bids and if the bid amount is greater than the minimum bid amount, then add it to the bidindex
-    function _minBidIndex() internal view returns (uint256 minIndex) {
-        uint minAmount;
-        for(uint256 i; i < bids.length; i++) {
-            Bid memory bid = bids[i];
+    //loops through index of bids and if the bid amount is greater than the minimum bid amount, then add it to the bidIndex
+    function _minBidIndex() internal view returns (uint minIndex,  uint minAmount) {
+       for(uint256 i; i < bids.length; i++) {
+            Bid memory newBid = bids[i];
 
-            if (bid.amount < minAmount || minAmount == 0) {
+            if (newBid.amount < minAmount || minAmount == 0) {
                     minIndex = i;
-                    minAmount = bid.amount;
+                    minAmount = newBid.amount;
             }
         }
     }
 
-    function _wonAuction(address participant) private view returns(bool){   
-
-        // TODO: retrieve in confidential data store
-        // Suave.BidId[] memory mergedBidIds = abi.decode(Suave.confidentialStoreRetrieve(allShareMatchBids[j].id, "mevshare:v0:mergedBids"), (Suave.BidId[]));
-
-        if(ended == true){
-            if(winners[participant] != 0){
-                return(true);
-            }
-            else{
-                return(false);
-            }
-        }
-    }
-
-    function setterAttendConcert(address _participant) public onlyOwner {
+    function setAttendConcert(address _participant) public onlyOwner {
         attendees[_participant] = true;
+        emit AttendedEvent(_participant);
     }
+
     function _getterAttendedConcert(address participant) private view returns(bool) {
         return(attendees[participant]);
     }
@@ -180,6 +169,8 @@ contract Auction is ERC1155Holder, Ownable {
     function rebateWithdraw() external returns (bool) {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_getterAttendedConcert(msg.sender), "You did not attend the event");
+        require(rebateWithdrawn[msg.sender] == false, "You have already withdrawn your rebate");
+
         uint amtPaid;
 
         for (uint i = 0 ; i < bids.length; i++){
@@ -193,16 +184,21 @@ contract Auction is ERC1155Holder, Ownable {
         //calculate how much rebate participants get
         uint delta = amtPaid - TICKET_RESERVE_PRICE;
 
+        //mark the rebate as withdrawn and send rebate
+        rebateWithdrawn[msg.sender] = true;
         (bool success,) = payable(msg.sender).call{ value: delta }('');
-        require(success);
-
-        return(success);
         emit BitRefundReceived(msg.sender, delta);        
+
+        require(success);
+        return(success);
     }
     
-    function burnRebate(address participant) private onlyOwner {
-        require(_isRebatePeriod(), "It's not rebate period");
-        require(_getterAttendedConcert(participant), "You did not attend the event");
+    //after the rebate period is over, the owner will call burn rebate, burning the eth of those who did not attend the event
+    //assume owner has a list of those who purcahsed tickets and did not attend 
+    function burnRebate(address participant) public onlyOwner {
+        require(_isRebatePeriod() == false || _isAuctionActive() == false, "Rebate period is not over yet");
+        require(rebateWithdrawn[participant] == false, "Participant already withdrew their rebate");
+        require(rebateBurned[participant] == false, "Participant already had their rebate burned");
         uint burnAmt;
 
         for (uint i = 0 ; i < bids.length; i++){
@@ -213,7 +209,10 @@ contract Auction is ERC1155Holder, Ownable {
             }
         } 
 
-        //setting money on fire, fun
+        //mark as burned
+        rebateBurned[participant] = true;
+
+        //setting money on fire
         address burnAddy = 0x000000000000000000000000000000000000dEaD;
 
         (bool sent,) = burnAddy.call{value: burnAmt}("");
