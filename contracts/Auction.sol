@@ -111,7 +111,6 @@ contract Auction is ERC1155Holder, Ownable {
 
     /// End the auction (in case you need to early)
     function auctionEnd() public onlyOwner {
-        require(block.timestamp >= AUCTION_END_TIME, "Auction not yet ended.");
         require(!ended, "auctionEnd has already been called.");
 
         //set auction ended to true
