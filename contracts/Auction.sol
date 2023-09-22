@@ -2,6 +2,13 @@
 
 pragma solidity ^0.8.8;
 
+// TODO: bids should be sent directly to the confidential store
+// confidential store should keep tabs of top x number of bids while also keeping track of all bids
+// post auction end, collect both lists from confidential store
+// send all eth to this contract, and then enable withdrawals for those who were overbid
+// waiting on testnet sneak peek from flashbots
+
+
 // based in part on https://docs.soliditylang.org/en/v0.8.3/solidity-by-example.html#blind-auction
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Receiver.sol";
