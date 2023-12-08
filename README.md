@@ -1,15 +1,15 @@
 # SUIFT
 
-walkthrough:
-1. Ticket seller sets minimum ticket price 
-2. While auction is open, allow bids
-    1. Require bid is equal to or higher than minimum ticket price
-    2. If the number of bids entered is less than the number of tickets being sold then update the queue with beneficiary address, price bid, and time of bid
-    3. Otherwise if there are more than TICKET_SUPPLY amount of bids AND if the bid is higher than the lowest bid in the bid list array then:
-        1. Remove the lowest bid from the queue (or most recent lowest bid if there are multiple bids at the same price)
-3. After auction is closed, rebate period begins
-        1. For non winnesr: set withdraw function so people can withdraw their bid if they do not win tickets
-        2. After event occurs in real life (off chain) we are given information about which addresses have attended the event
-        3. The delta between the initial set reserve price of the ticket and the price paid by beneficiary is aggregated and distributed pro-rata to beneficiaries who actually attend.
-4. After the rebate period is over, any leftover ETH is burned. This is to prevent anyone from benefitting by somehow preventing people to attend the event.
+Walkthrough:
 
+1. Contract owner sets ticket value
+2. Auction starts
+3. Bidders send their verbal bid to confidential store, all are recorded
+4. Auction ends
+5. Array of winners is made public and payment period begins
+6. Owner ends payment period and those winners that do not pay are removed from the array
+7. The next highest bidders are added to the array and the payment period begins again
+8. This process repeats until all tickets have been sold
+9. Event Occurs
+10. During the event, the attendee list is generated
+11. Post event, attendees are refunded their event_deposit; event_deposits linked to non-attendees are dedicated to a charity (wallet address) of the artist's choosing - or burned.
