@@ -11,6 +11,8 @@ import { Tickets } from './Tickets.sol';
 
 contract Auction is ERC1155Holder, Ownable {
     address [] winners;
+    address [] bidders;
+    uint [] allBidValues;
     mapping(address => bool) private purchasers;
     mapping(address  => bool) private attendees;
     address public immutable TICKET_ADDRESS;
@@ -19,18 +21,19 @@ contract Auction is ERC1155Holder, Ownable {
     uint public immutable AUCTION_TICKETS_TYPE; 
     address public immutable CHARITY_ADDRESS;
     uint private immutable DECRYPTION_CONDITION;
+    uint private currMinBid;
     bool public auctionEnded = false;
     uint private capitalSpentInAuction = 0;
     bool public attended = false;
     uint public ticketSold = 0;
     string bidType;
-    address [] addressList;
     struct AuctionBid {
         address beneficiary;
         uint256 amount;
         uint256 timestamp;
     }
     AuctionBid[] private bids;
+    AuctionBid[] private winningBids;
 
     // Events
     event BidEntered(address indexed beneficiary, uint256 indexed amount);
@@ -40,8 +43,9 @@ contract Auction is ERC1155Holder, Ownable {
     event AuctionCreated(address ticketsAddress, uint auctionTicketsId, uint ticketSupply, uint ticketReservePrice, address charity);
     event AttendedEvent(address eventgoer);
     event CycledPaymentPeriod(bool);
+    event AuctionEnded(address[] winners);
 
-    constructor (address _ticketsAddress, uint _auctionTicketsId, uint _ticketSupply, uint _ticketReservePrice, address _charity, address _address) {
+    constructor (address _ticketsAddress, uint _auctionTicketsId, uint _ticketSupply, uint _ticketReservePrice, address _charity) {
         require(_auctionTicketsId == 1 || _auctionTicketsId == 2 || _auctionTicketsId == 3, "Token does not exist");
         require(_ticketSupply > 0, 'Must provide supply');
         require(_ticketReservePrice > 0, 'Must provide reserve price');
@@ -52,71 +56,53 @@ contract Auction is ERC1155Holder, Ownable {
         TICKET_RESERVE_PRICE = _ticketReservePrice;
         TICKET_ADDRESS = _ticketsAddress;
         DECRYPTION_CONDITION = _decryptionCondition;
-        addressList.push(_address);
 
         //emit event
         emit AuctionCreated(_ticketsAddress, _auctionTicketsId, _ticketSupply, _ticketReservePrice, _charity);
     }
-    
-    // Internal function to save order details
-    function _sendBidToConfidentialStore(AuctionBid _bid) internal view {
-        address[] memory allowedList = new address[](1);
-        allowedList[0] = address(this);
 
-        Suave.Bid memory bid = Suave.newBid(
-            10,
-            allowedList,
-            allowedList,
-            "auctionBid"
-        );
-
-        Suave.confidentialStore(bid.id, "auctionBid", abi.encode(_bid));
-    }
-    
-    function _retrieveBid(uint id) public onlyOwner returns(string) {
-        bytes memory value = Suave.confidentialRetrieve(bid.id, "auctionBid");
-        require(keccak256(value) == keccak256(abi.encode(1)));
-
-        Suave.Bid[] memory allShareMatchBids = Suave.fetchBids(10, "auctionBid");
-        return abi.encodeWithSelector(this.callback.selector);
-    }
-
+    // bidders enter a "verbal" bid amount as well a deposit equal to the face value of the ticket
+    // bidders can lose this deposit if they win and don't pay the delta between the this deposit and their verbal bid
     function sendBid(uint _bidAmount) public {
         require(auctionEnded == false, "The auction has ended");
-        require(msg.value >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
+        require(_bidAmount >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
 
-        (uint minBidIndex, uint minAmount) = _minBidIndex();
+        // if bidder hasn't previously bid, they need to pay ticket reserve amount
+        // add them to the bidders list
+        if (bidders[msg.sender] == false){
+            require(msg.value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
+            bidders.push(msg.sender);
+        }
 
+        // creates a new auction bid, which tracks bidder, their verbal amount, and the time of bid
         AuctionBid auctionBid = new AuctionBid(msg.sender, _bidAmount, block.timestamp);
 
-        //check whether number of bids is less than total ticket supply
-        if (TICKET_SUPPLY > bids.length) {
-            
-            _sendBidToConfidentialStore(auctionBid);
-            bids.push(auctionBid);
+        // send the bid to the confidential store and add bid amount to bid value array
+        _sendBidToConfidentialStore(auctionBid);
+        allBidValues.push(_bidAmount);
 
-            emit BidEntered(msg.sender, msg.value);
-            return;
+        uint latestMinBid = _getMinBid();
+        if (currMinBid != latestMinBid){
+            currMinBid = latestMinBid;
+            emit MinBidUpdated(latestMinBid);
         }
-        require(msg.value >= minAmount, 'Your bid is lower than the minimum');
-        _replaceLowestBid(auctionBid, minBidIndex);
     }
-
-    // End the auction
+    
+    // Owner can end the auction
     function auctionEnd() public onlyOwner {
         auctionEnded = true;
         emit AuctionEnded(auctionEnded);
 
-        //determine winners
-        // from confidential store
-
-        //emit winners
+        //determine winners and emit list
+        winningBids = _getWinningBids();
+        emit AuctionEnded(winningBids);
     }
 
     function payForTickets() public payable {
-        //todo: require that msg.sender address is on the list of winners, otherwise revert
-        //require that auction is ended
-        //mint tickets to msg.sender
+        require(auctionEnded, "Auction still ongoing");
+        require(_checkIfWinner(msg.sender), "Did not win tickets");
+        require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect");
+        // TODO: mint msg.sender tickets
     }
 
     // owner must call this repeatedly until there are no more tickets to sell
@@ -140,44 +126,15 @@ contract Auction is ERC1155Holder, Ownable {
         //emit new winners
     }
 
-    function _isAuctionActive() internal view returns (bool) {
-        return(auctionEnded==false);
-    }
-
-    //replaces one of the lowest accepted bids in the auction with this latest bid and adds a refund to the beneficiary who was overbid
-    //Note: this could be improved by looping through timestamps and determining who was the most recent lowest bid
-    function _replaceLowestBid(Bid memory bid, uint256 minBidIndex) internal {
-        Bid memory currentBid = bids[minBidIndex];
-        bidRefunds[currentBid.beneficiary] += currentBid.amount;
-        currentBid = bid;
-        emit MinBidUpdated(currentBid.amount);
-    }
-
-    //loops through index of bids and if the bid amount is greater than the minimum bid amount, then add it to the bidIndex
-    function _minBidIndex() internal view returns (uint minIndex,  uint minAmount) {
-       for(uint256 i; i < bids.length; i++) {
-            Bid memory newBid = bids[i];
-
-            if (newBid.amount < minAmount || minAmount == 0) {
-                    minIndex = i;
-                    minAmount = newBid.amount;
-            }
-        }
-    }
-
     function setAttendConcert(address _participant) public onlyOwner {
-        // require auction is over
-        // require participant on list of winners -- reduce shadiness from owners!!
+        require(auctionEnded, "Auction still ongoing");
+        require(_checkIfWinner(_participant), "Did not win tickets");
+
         attendees[_participant] = true;
         emit AttendedEvent(_participant);
     }
 
-    function _getterAttendedConcert(address participant) private view returns(bool) {
-        return(attendees[participant]);
-    }
-
     //Enable withdrawals for bids that have been overbid
-    //todo; double check, do we need this??? or can we just send the amount back 
     function rebateWithdraw() external returns (bool) {
         require(_isRebatePeriod(), "It's not rebate period");
         require(_getterAttendedConcert(msg.sender), "You did not attend the event");
@@ -227,4 +184,84 @@ contract Auction is ERC1155Holder, Ownable {
         (bool sent,) = CHARITY_ADDRESS.call{value: burnAmt}("");
         require(sent, "Failed to send Ether");
     }
+    
+    // Internal function to save order details confidentially
+    function _sendBidToConfidentialStore(AuctionBid _bid) internal view {
+        //allowing this contract to be a "peeker" into the confidential store
+        address[] memory allowedList = new address[](1);
+        allowedList[0] = address(this);
+
+        // initialize confidential store
+        Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid");
+
+        // save bid in confidential store
+        Suave.confidentialStore(bid.id, "auctionBid", abi.encode(_bid));
+    }
+
+    function _getWinningBids() internal returns(AuctionBid []) {
+        bytes memory value = Suave.confidentialRetrieve(bid.id, "auctionBid");
+        require(keccak256(value) == keccak256(abi.encode(1)));
+
+        uint currMinBid = _getMinBid();
+
+        // extract bids from confidential store
+        for (uint i = 0; i < bidIds.length; i++) {
+            uint bidVal = (Suave.confidentialRetrieve(bidIds[i], "auctionBid")).amount;
+            if (bidVal >= currMinBid) {
+                bids[i] = Suave.confidentialRetrieve(bidIds[i], "auctionBid");
+            }
+        }
+		return bids;
+    }
+
+    function _checkIfWinner(address _bidder) internal returns (bool) {
+        require(auctionEnded, "auction still ongoing");
+        _getWinningBids();
+        for (uint i=0; i < bids.length; i++){
+            if (bid.beneficiary == _bidder) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _getAmountOwed(address _bidder) internal returns (uint) {
+        require(auctionEnded, "auction still ongoing");
+        _getWinningBids();
+        for (uint i=0; i < bids.length; i++){
+            if (bid.beneficiary == _bidder) {
+                return bid.amount;
+            }
+        }
+    }
+    
+    function _getMinBid() internal returns(uint) {
+        (uint left, uint i) = allBidValues[0];
+        (uint right, uint j) = allBidValues[allBidValues.length - 1];
+        
+        if (i == j) return;
+        uint pivot = arr[uint(left + (right - left) / 2)];
+        while (i <= j) {
+            while (arr[uint(i)] > pivot) i++;
+            while (pivot > arr[uint(j)]) j--;
+            if (i <= j) {
+                (arr[uint(i)], arr[uint(j)]) = (arr[uint(j)], arr[uint(i)]);
+                i++;
+                j--;
+            }
+        }
+        if (left < j) {
+            quickSort(arr, left, j);
+        }
+
+        if (i < right) {
+            quickSort(arr, i, right);
+        }
+
+        return(allBidValues[TICKET_SUPPLY-1]);
+    }
+    
+    function _getterAttendedConcert(address participant) private view returns(bool) {
+        return(attendees[participant]);
+    }    
 }
