@@ -15,6 +15,7 @@ contract Auction is ERC1155Holder, Ownable {
     uint [] allBidValues;
     mapping(address => bool) private purchasers;
     mapping(address  => bool) private attendees;
+    mapping(address => uint) private accountForWithdrawals;
     address public immutable TICKET_ADDRESS;
     uint public immutable TICKET_RESERVE_PRICE;
     uint public immutable TICKET_SUPPLY;
@@ -23,6 +24,7 @@ contract Auction is ERC1155Holder, Ownable {
     uint private immutable DECRYPTION_CONDITION  = 10;
     uint private currMinBid;
     bool public auctionEnded = false;
+    bool public rebatePeriodEnded = false;
     uint private capitalSpentInAuction = 0;
     bool public attended = false;
     uint public ticketSold = 0;
@@ -109,33 +111,27 @@ contract Auction is ERC1155Holder, Ownable {
 
         attendees[_participant] = true;
         emit AttendedEvent(_participant);
+
+        // allow particpant to now withdraw rebate - add rebate to their "account"
+        for (uint i = 0; i < bids.length; i++) {
+            if (bids[i].beneficiary == _participant) {
+                accountForWithdrawals[bids[i].beneficiary] += bids[i].amount;
+            }
+        }
+
     }
 
     //Enable withdrawals for bids that have been overbid
     function rebateWithdraw() external returns (bool) {
-        require(_isRebatePeriod(), "It's not rebate period");
-        require(_getterAttendedConcert(msg.sender), "You did not attend the event");
-        require(rebateWithdrawn[msg.sender] == false, "You have already withdrawn your rebate");
+        require(rebatePeriodEnded == false, "It's not rebate period");
+        require(_getAttendedConcert(msg.sender), "You did not attend the event");
+        require(accountForWithdrawals[msg.sender] > 0, "Nothing to withdraw");
 
-        uint amtPaid;
-
-        for (uint i = 0 ; i < bids.length; i++){
-            bytes32 encodedAddy = keccak256(abi.encode(bids[i].beneficiary));
-
-            if (encodedAddy == keccak256(abi.encode(msg.sender))){
-                amtPaid = bids[i].amount;
-            }
-        } 
-
-        //calculate how much rebate participants get
-        uint delta = amtPaid - TICKET_RESERVE_PRICE;
+        uint amountAvailable = accountForWithdrawals[msg.sender];
 
         //mark the rebate as withdrawn and send rebate
-        rebateWithdrawn[msg.sender] = true;
-        (bool success,) = payable(msg.sender).call{ value: delta }('');
-        emit BitRefundReceived(msg.sender, delta);        
-
-        require(success);
+        (bool success,) = payable(msg.sender).call{ value: amountAvailable }('');
+        emit BitRefundReceived(msg.sender, amountAvailable);        
         return(success);
     }
     
@@ -181,11 +177,22 @@ contract Auction is ERC1155Holder, Ownable {
         // extract bids from confidential store
         for (uint i = 0; i < Suave.bidIds.length; i++) {
             uint bidVal = (Suave.confidentialRetrieve(bid[i], "auctionBid")).amount;
+
+            // only collecting bids that have won
+            // todo: sort by timestamp and only include ticket_supply number of bids
             if (bidVal >= currMinBid) {
                 bids[i] = Suave.confidentialRetrieve(bid[i], "auctionBid");
             }
+            // if bids have lost, allow bidders to withdraw by adding to their withdrawal account
+            if (bidVal < currMinBid) {
+                accountForWithdrawals[bids[i].beneficiary] += bids[i].amount;
+            }
         }
 		return bids;
+    }
+
+    function _getAttendedConcert(address _participant) internal returns(bool) {
+        return(attendees[_participant]);
     }
 
     function _checkIfWinner(address _bidder) internal returns (bool) {
@@ -234,8 +241,4 @@ contract Auction is ERC1155Holder, Ownable {
 
         return(allBidValues[TICKET_SUPPLY-1]);
     }
-    
-    function _getterAttendedConcert(address participant) private view returns(bool) {
-        return(attendees[participant]);
-    }    
 }
