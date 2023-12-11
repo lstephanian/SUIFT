@@ -14,8 +14,9 @@ contract Auction is ERC1155Holder, Ownable {
     address [] bidders;
     uint [] allBidValues;
     mapping(address => bool) private purchasers;
-    mapping(address  => bool) private attendees;
+    mapping(address => bool) private attendees;
     mapping(address => uint) private accountForWithdrawals;
+    mapping(address => uint) private boosted;
     address public immutable TICKET_ADDRESS;
     uint public immutable TICKET_RESERVE_PRICE;
     uint public immutable TICKET_SUPPLY;
@@ -61,6 +62,16 @@ contract Auction is ERC1155Holder, Ownable {
         emit AuctionCreated(_ticketsAddress, _auctionTicketsId, _ticketSupply, _ticketReservePrice, _charity);
     }
 
+    // taylor swift can graciously identify certain superfans to "boost" i.e. give them an additional amount of cash to boost their bid higher
+    function setBoosted(address _bidder, uint boostAmount) public onlyOwner {
+        require(boostAmount > 0, "boost amount must be greater than 0");
+        boosted[_bidder] = boostAmount;
+    }
+
+    function _getBoosted(address _bidder) private onlyOwner returns (uint) {
+        return(boosted[_bidder]);
+    }
+
     // bidders enter a "verbal" bid amount as well a deposit equal to the face value of the ticket
     // bidders can lose this deposit if they win and don't pay the delta between the this deposit and their verbal bid
     function sendBid(uint _bidAmount) public {
@@ -72,6 +83,12 @@ contract Auction is ERC1155Holder, Ownable {
         if (bidders[msg.sender] == false){
             require(msg.value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
             bidders.push(msg.sender);
+        }
+
+        // check if bidder got a boost from the owner
+        // if so, boost their bid
+        if (_getBoosted(msg.sender) > 0) {
+            _bidAmount += _getBoosted(msg.sender);
         }
 
         // creates a new auction bid, which tracks bidder, their verbal amount, and the time of bid
@@ -118,7 +135,6 @@ contract Auction is ERC1155Holder, Ownable {
                 accountForWithdrawals[bids[i].beneficiary] += bids[i].amount;
             }
         }
-
     }
 
     //Enable withdrawals for bids that have been overbid
