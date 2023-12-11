@@ -20,7 +20,7 @@ contract Auction is ERC1155Holder, Ownable {
     uint public immutable TICKET_SUPPLY;
     uint public immutable AUCTION_TICKETS_TYPE; 
     address public immutable CHARITY_ADDRESS;
-    uint private immutable DECRYPTION_CONDITION;
+    uint private immutable DECRYPTION_CONDITION  = 10;
     uint private currMinBid;
     bool public auctionEnded = false;
     uint private capitalSpentInAuction = 0;
@@ -55,7 +55,6 @@ contract Auction is ERC1155Holder, Ownable {
         TICKET_SUPPLY = _ticketSupply;
         TICKET_RESERVE_PRICE = _ticketReservePrice;
         TICKET_ADDRESS = _ticketsAddress;
-        DECRYPTION_CONDITION = _decryptionCondition;
 
         //emit event
         emit AuctionCreated(_ticketsAddress, _auctionTicketsId, _ticketSupply, _ticketReservePrice, _charity);
@@ -199,16 +198,13 @@ contract Auction is ERC1155Holder, Ownable {
     }
 
     function _getWinningBids() internal returns(AuctionBid []) {
-        bytes memory value = Suave.confidentialRetrieve(bid.id, "auctionBid");
-        require(keccak256(value) == keccak256(abi.encode(1)));
-
-        uint currMinBid = _getMinBid();
+        currMinBid = _getMinBid();
 
         // extract bids from confidential store
-        for (uint i = 0; i < bidIds.length; i++) {
-            uint bidVal = (Suave.confidentialRetrieve(bidIds[i], "auctionBid")).amount;
+        for (uint i = 0; i < Suave.bidIds.length; i++) {
+            uint bidVal = (Suave.confidentialRetrieve(bid[i], "auctionBid")).amount;
             if (bidVal >= currMinBid) {
-                bids[i] = Suave.confidentialRetrieve(bidIds[i], "auctionBid");
+                bids[i] = Suave.confidentialRetrieve(bid[i], "auctionBid");
             }
         }
 		return bids;
@@ -218,7 +214,7 @@ contract Auction is ERC1155Holder, Ownable {
         require(auctionEnded, "auction still ongoing");
         _getWinningBids();
         for (uint i=0; i < bids.length; i++){
-            if (bid.beneficiary == _bidder) {
+            if (bids[i].beneficiary == _bidder) {
                 return true;
             }
         }
@@ -229,8 +225,8 @@ contract Auction is ERC1155Holder, Ownable {
         require(auctionEnded, "auction still ongoing");
         _getWinningBids();
         for (uint i=0; i < bids.length; i++){
-            if (bid.beneficiary == _bidder) {
-                return bid.amount;
+            if (bids[i].beneficiary == _bidder) {
+                return bids[i].amount;
             }
         }
     }
@@ -240,22 +236,22 @@ contract Auction is ERC1155Holder, Ownable {
         (uint right, uint j) = allBidValues[allBidValues.length - 1];
         
         if (i == j) return;
-        uint pivot = arr[uint(left + (right - left) / 2)];
+        uint pivot = bids[uint(left + (right - left) / 2)];
         while (i <= j) {
-            while (arr[uint(i)] > pivot) i++;
-            while (pivot > arr[uint(j)]) j--;
+            while (bids[uint(i)] > pivot) i++;
+            while (pivot > bids[uint(j)]) j--;
             if (i <= j) {
-                (arr[uint(i)], arr[uint(j)]) = (arr[uint(j)], arr[uint(i)]);
+                (bids[uint(i)], bids[uint(j)]) = (bids[uint(j)], bids[uint(i)]);
                 i++;
                 j--;
             }
         }
         if (left < j) {
-            quickSort(arr, left, j);
+            _getMinBid(bids, left, j);
         }
 
         if (i < right) {
-            quickSort(arr, i, right);
+            _getMinBid(bids, i, right);
         }
 
         return(allBidValues[TICKET_SUPPLY-1]);
