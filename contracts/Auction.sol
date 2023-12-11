@@ -135,27 +135,22 @@ contract Auction is ERC1155Holder, Ownable {
         return(success);
     }
     
-    //after the rebate period is over, the owner will call burn rebate, burning the eth of those who did not attend the event
-    //assume owner has a list of those who purcahsed tickets and did not attend 
-    function sendRebate(address participant) public onlyOwner {
-        require(_isRebatePeriod() == false || _isAuctionActive() == false, "Rebate period is not over yet");
-        require(rebateWithdrawn[participant] == false, "Participant already withdrew their rebate");
-        require(rebateBurned[participant] == false, "Participant already had their rebate burned");
+    //after the rebate period is over, the owner will call burnOrSendRebate, burning the eth of those who did not attend the event or sending it to charity
+    //assume owner has a list of those who purchased tickets and did not attend 
+    function burnOrSendRebate(address participant) public onlyOwner {
+        require(rebatePeriodEnded && auctionEnded, "Rebate period is not over yet");
+
         uint burnAmt;
 
         for (uint i = 0 ; i < bids.length; i++){
             bytes32 encodedAddy = keccak256(abi.encode(bids[i].beneficiary));
 
             if (encodedAddy == keccak256(abi.encode(msg.sender))){
-                burnAmt = bids[i].amount;
+                burnAmt = accountForWithdrawals[participant];
+                (bool sent,) = CHARITY_ADDRESS.call{value: burnAmt}("");
+                require(sent, "Failed to send Ether");
             }
         } 
-
-        //mark as burned
-        rebateBurned[participant] = true;
-
-        (bool sent,) = CHARITY_ADDRESS.call{value: burnAmt}("");
-        require(sent, "Failed to send Ether");
     }
     
     // Internal function to save order details confidentially
