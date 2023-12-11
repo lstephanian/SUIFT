@@ -38,6 +38,8 @@ contract Auction is ERC1155Holder, Ownable {
     AuctionBid[] private bids;
     AuctionBid[] private winningBids;
 
+    Tickets tickets = new Tickets();
+
     // Events
     event BidEntered(address indexed beneficiary, uint256 indexed amount);
     event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
@@ -119,7 +121,9 @@ contract Auction is ERC1155Holder, Ownable {
         require(auctionEnded, "Auction still ongoing");
         require(_checkIfWinner(msg.sender), "Did not win tickets");
         require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect");
-        // TODO: mint msg.sender tickets
+        
+        // mint tickets to msg.sender
+        tickets.mint(msg.sender, AUCTION_TICKETS_TYPE, 1);
     }
 
     function setAttendConcert(address _participant) public onlyOwner {
