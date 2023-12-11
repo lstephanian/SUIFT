@@ -42,7 +42,6 @@ contract Auction is ERC1155Holder, Ownable {
     event AuctionEnded(bool);
     event AuctionCreated(address ticketsAddress, uint auctionTicketsId, uint ticketSupply, uint ticketReservePrice, address charity);
     event AttendedEvent(address eventgoer);
-    event CycledPaymentPeriod(bool);
     event AuctionEnded(address[] winners);
 
     constructor (address _ticketsAddress, uint _auctionTicketsId, uint _ticketSupply, uint _ticketReservePrice, address _charity) {
@@ -102,27 +101,6 @@ contract Auction is ERC1155Holder, Ownable {
         require(_checkIfWinner(msg.sender), "Did not win tickets");
         require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect");
         // TODO: mint msg.sender tickets
-    }
-
-    // owner must call this repeatedly until there are no more tickets to sell
-    function cyclePaymentPeriod() public onlyOwner {
-        require(auctionEnded, "auction ongoing");
-        require(TICKET_SUPPLY > ticketSold, "no more tickets to sell");
-        //diff purchasers_array.length - ticket_supply
-
-        uint leftover = TICKET_SUPPLY - ticketsSold;
-        uint x;
-
-        //remove winners who didn't pay from winner array
-
-        
-        //add that number of next in line addresses
-
-
-        // find the next x amount of highest bidders and allow them to pay
-
-        emit CycledPaymentPeriod(true);
-        //emit new winners
     }
 
     function setAttendConcert(address _participant) public onlyOwner {
