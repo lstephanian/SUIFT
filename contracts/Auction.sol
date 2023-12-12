@@ -13,7 +13,6 @@ contract Auction is ERC1155Holder, Ownable {
     address [] winners;
     address [] bidders;
     uint [] allBidValues;
-    mapping(address => bool) private purchasers;
     mapping(address => bool) private attendees;
     mapping(address => uint) private accountForWithdrawals;
     mapping(address => uint) private boosted;
@@ -26,10 +25,6 @@ contract Auction is ERC1155Holder, Ownable {
     uint private currMinBid;
     bool public auctionEnded = false;
     bool public rebatePeriodEnded = false;
-    uint private capitalSpentInAuction = 0;
-    bool public attended = false;
-    uint public ticketSold = 0;
-    string bidType;
     struct AuctionBid {
         address beneficiary;
         uint256 amount;
@@ -177,7 +172,7 @@ contract Auction is ERC1155Holder, Ownable {
     function _sendBidToConfidentialStore(AuctionBid _bid) internal view {
         //allowing this contract to be a "peeker" into the confidential store
         address[] memory allowedList = new address[](1);
-        allowedList[0] = address(this);
+        allowedList[0] = 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829; // wildcard address so any kettle can access
 
         // initialize confidential store
         Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid");
