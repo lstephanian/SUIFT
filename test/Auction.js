@@ -4,8 +4,7 @@ const { time } = require('@nomicfoundation/hardhat-network-helpers');
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 require("@nomicfoundation/hardhat-toolbox");
 
-
-// TODO: Finish Tests!
+// NOTE: Incomplete!!
 
 describe("Auction", function () {
   let owner;
