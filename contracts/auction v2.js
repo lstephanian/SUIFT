@@ -71,43 +71,40 @@ contract Auction is ERC1155Holder, Ownable {
 
     // bidders enter a "verbal" bid amount as well a deposit equal to the face value of the ticket
     // bidders can lose this deposit if they win and don't pay the delta between the this deposit and their verbal bid
-    function sendBid(uint _bidAmount) public returns(bytes) {
+    function sendBid(uint _bidAmount) public payable {
         require(auctionEnded == false, "The auction has ended");
         require(_bidAmount >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
 
+        _sendBidToConfidentialStore( _receiveBidInfo(_bidAmount, msg.sender, msg.value));
+    }
+
+    function _receiveBidInfo(uint _verbalBid, address _sender, uint _value) private returns(bytes) {
         // if bidder hasn't previously bid, they need to pay ticket reserve amount
         // add them to the bidders list
-        if (bidders[msg.sender] == false){
-            require(msg.value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
-            bidders.push(msg.sender);
+        if (bidders[_sender] == false){
+            require(_value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
+            bidders.push(_sender);
         }
 
         // check if bidder got a boost from the owner
         // if so, boost their bid
-        if (_getBoosted(msg.sender) > 0) {
-            _bidAmount += _getBoosted(msg.sender);
+        if (_getBoosted(_sender) > 0) {
+            _verbalBid += _getBoosted(_sender);
         }
 
         // creates a new auction bid, which tracks bidder, their verbal amount, and the time of bid
-        AuctionBid auctionBid = new AuctionBid(msg.sender, _bidAmount, block.timestamp);
+        AuctionBid auctionBid = new AuctionBid(_sender, _verbalBid, block.timestamp);
 
         // send the bid to the confidential store and add bid amount to bid value array
-        _sendBidToConfidentialStore(auctionBid);
-        allBidValues.push(_bidAmount);
+        allBidValues.push(_verbalBid);
 
         uint latestMinBid = _getMinBid();
         if (currMinBid != latestMinBid){
             currMinBid = latestMinBid;
             emit MinBidUpdated(latestMinBid);
         }
-    }
-    
-    // What you need to do is calculate everything you want and construct objects,
-    // and then return the function selector + inputs to the onchain function call 
-    // to update this data. In the mev-share example in suave-geth you can see the 
-    // return of newMatch is “return bytes.concat(this.emitBid.selector, Abi.encode(bid))"
-    function _receiveBidInfo() private returns(bytes) {
-        // put on chain stuff here?
+
+        return bytes.concat(this.emitBid.selector, abi.encode(auctionBid));
     }
     
     // Owner can end the auction
