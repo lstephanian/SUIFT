@@ -75,13 +75,6 @@ contract Auction is ERC1155Holder, Ownable {
         require(auctionEnded == false, "The auction has ended");
         require(_bidAmount >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
 
-        // if bidder hasn't previously bid, they need to pay ticket reserve amount
-        // add them to the bidders list
-        if (bidders[msg.sender] == false){
-            require(msg.value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
-            bidders.push(msg.sender);
-        }
-
         // check if bidder got a boost from the owner
         // if so, boost their bid
         if (_getBoosted(msg.sender) > 0) {
@@ -89,7 +82,7 @@ contract Auction is ERC1155Holder, Ownable {
         }
 
         // creates a new auction bid, which tracks bidder, their verbal amount, and the time of bid
-        AuctionBid auctionBid = new AuctionBid(msg.sender, _bidAmount, block.timestamp);
+        AuctionBid auctionBid = new AuctionBid(msg.sender, _bidAmount, block.timestamp); 
 
         // send the bid to the confidential store and add bid amount to bid value array
         _sendBidToConfidentialStore(auctionBid);
@@ -100,14 +93,18 @@ contract Auction is ERC1155Holder, Ownable {
             currMinBid = latestMinBid;
             emit MinBidUpdated(latestMinBid);
         }
+
+        return abi.encodeWithSelector(this._receiveBidInfo.selector, msg.sender, msg.value);
     }
-    
-    // What you need to do is calculate everything you want and construct objects,
-    // and then return the function selector + inputs to the onchain function call 
-    // to update this data. In the mev-share example in suave-geth you can see the 
-    // return of newMatch is “return bytes.concat(this.emitBid.selector, Abi.encode(bid))"
-    function _receiveBidInfo() private returns(bytes) {
-        // put on chain stuff here?
+
+    function _receiveBidInfo(address sender, uint value) external returns(bytes) {
+        require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle"); //note: without this, anyone could call this and modify our storage
+        // if bidder hasn't previously bid, they need to pay ticket reserve amount
+        // add them to the bidders list
+        if (bidders[sender] == false){
+            require(value == TICKET_RESERVE_PRICE, "Required to send ticket reserve amount");
+            bidders.push(sender);
+        }    
     }
     
     // Owner can end the auction
@@ -120,19 +117,29 @@ contract Auction is ERC1155Holder, Ownable {
         emit AuctionEnded(winningBids);
     }
 
-    function payForTickets() public payable {
+    function payForTickets() public payable returns(bytes) {
         require(auctionEnded, "Auction still ongoing");
         require(_checkIfWinner(msg.sender), "Did not win tickets");
-        require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect");
+        require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect"); //assume payment / msg.value works for now
         
+        return abi.encodeWithSelector(this._onchainPayForTickets.selector, msg.sender);
+    }
+    
+    function _onchainPayForTickets(address _sender) public  {
+        require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle");
         // mint tickets to msg.sender
         tickets.mint(msg.sender, AUCTION_TICKETS_TYPE, 1);
     }
 
-    function setAttendConcert(address _participant) public onlyOwner {
+    function setAttendConcert(address _participant) public onlyOwner returns(bytes) {
         require(auctionEnded, "Auction still ongoing");
         require(_checkIfWinner(_participant), "Did not win tickets");
 
+        return abi.encodeWithSelector(this._onChainSetAttendConcert.selector, _participant);
+    }
+
+    function _onChainSetAttendConcert(address _participant) public {
+        require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle");
         attendees[_participant] = true;
         emit AttendedEvent(_participant);
 
@@ -183,7 +190,7 @@ contract Auction is ERC1155Holder, Ownable {
         allowedList[0] = 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829; // wildcard address so any kettle can access
 
         // initialize confidential store
-        Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid");
+        Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid"); //note: this is creating a new bid data for every bid, might be good to go back one day and put multiple bids in one bid data store
 
         // save bid in confidential store
         Suave.confidentialStore(bid.id, "auctionBid", abi.encode(_bid));
@@ -191,10 +198,15 @@ contract Auction is ERC1155Holder, Ownable {
 
     function _getWinningBids() internal returns(AuctionBid []) {
         currMinBid = _getMinBid();
+        
+        Suave.Bid[] memory fetchedBids = bid.fetchBids(DECRYPTION_CONDITION, "auctionBid");
 
         // extract bids from confidential store
-        for (uint i = 0; i < Suave.bidIds.length; i++) {
-            uint bidVal = (Suave.confidentialRetrieve(bid[i], "auctionBid")).amount;
+        for (uint i = 0; i < fetchedBids.length; i++) {
+            
+            bytes memory bidStruct = (Suave.confidentialRetrieve(fetchedBids[i], "auctionBid"));
+            AuctionBid restoredBid  = abi.decode(data, AuctionBid);
+            uint bidVal = restoredBid.amount;
 
             // only collecting bids that have won
             // todo: sort by timestamp and only include ticket_supply number of bids
