@@ -35,11 +35,8 @@ contract Auction is ERC1155Holder, Ownable {
 
     Tickets tickets = new Tickets();
 
-    // Events
-    event BidEntered(address indexed beneficiary, uint256 indexed amount);
     event BitRefundReceived(address indexed beneficiary, uint256 indexed amount);
     event MinBidUpdated(uint256 indexed amount);
-    event AuctionEnded(bool);
     event AuctionCreated(address ticketsAddress, uint auctionTicketsId, uint ticketSupply, uint ticketReservePrice, address charity);
     event AttendedEvent(address eventgoer);
     event AuctionEnded(address[] winners);
@@ -59,7 +56,8 @@ contract Auction is ERC1155Holder, Ownable {
         emit AuctionCreated(_ticketsAddress, _auctionTicketsId, _ticketSupply, _ticketReservePrice, _charity);
     }
 
-    // taylor swift can graciously identify certain superfans to "boost" i.e. give them an additional amount of cash to boost their bid higher
+    // the performer can graciously identify certain superfans to "boost" i.e. 
+    // give them an additional amount of cash to boost their bid higher
     function setBoosted(address _bidder, uint boostAmount) public onlyOwner {
         require(boostAmount > 0, "boost amount must be greater than 0");
         boosted[_bidder] = boostAmount;
@@ -70,7 +68,8 @@ contract Auction is ERC1155Holder, Ownable {
     }
 
     // bidders enter a "verbal" bid amount as well a deposit equal to the face value of the ticket
-    // bidders can lose this deposit if they win and don't pay the delta between the this deposit and their verbal bid
+    // bidders can lose this deposit if they win and don't pay the delta between the this deposit 
+    // and their verbal bid
     function sendBid(uint _bidAmount) public returns(bytes) {
         require(auctionEnded == false, "The auction has ended");
         require(_bidAmount >= TICKET_RESERVE_PRICE, "The bid cannot be lower than ticket value");
@@ -98,7 +97,9 @@ contract Auction is ERC1155Holder, Ownable {
     }
 
     function _receiveBidInfo(address sender, uint value) external returns(bytes) {
-        require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle"); //note: without this, anyone could call this and modify our storage
+        //note: without this, anyone could call this and modify our storage
+        require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle"); 
+
         // if bidder hasn't previously bid, they need to pay ticket reserve amount
         // add them to the bidders list
         if (bidders[sender] == false){
@@ -110,7 +111,6 @@ contract Auction is ERC1155Holder, Ownable {
     // Owner can end the auction
     function auctionEnd() public onlyOwner {
         auctionEnded = true;
-        emit AuctionEnded(auctionEnded);
 
         //determine winners and emit list
         winningBids = _getWinningBids();
@@ -120,13 +120,15 @@ contract Auction is ERC1155Holder, Ownable {
     function payForTickets() public payable returns(bytes) {
         require(auctionEnded, "Auction still ongoing");
         require(_checkIfWinner(msg.sender), "Did not win tickets");
-        require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect"); //assume payment / msg.value works for now
+        //assume payment / msg.value works for now
+        require(msg.value >= (_getAmountOwed(msg.sender) - TICKET_RESERVE_PRICE), "Payment amout incorrect"); 
         
         return abi.encodeWithSelector(this._onchainPayForTickets.selector, msg.sender);
     }
     
     function _onchainPayForTickets(address _sender) public  {
         require(sender == 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829, "sender should be kettle");
+
         // mint tickets to msg.sender
         tickets.mint(msg.sender, AUCTION_TICKETS_TYPE, 1);
     }
@@ -165,8 +167,10 @@ contract Auction is ERC1155Holder, Ownable {
         return(success);
     }
     
-    //after the rebate period is over, the owner will call burnOrSendRebate, burning the eth of those who did not attend the event or sending it to charity
-    //assume owner has a list of those who purchased tickets and did not attend 
+    // after the rebate period is over, the owner will call burnOrSendRebate, 
+    // burning the eth of those who did not attend the event or sending it to 
+    // charity assume owner has a list of those who purchased tickets and did 
+    // not attend 
     function burnOrSendRebate(address participant) public onlyOwner {
         require(rebatePeriodEnded && auctionEnded, "Rebate period is not over yet");
 
@@ -190,7 +194,9 @@ contract Auction is ERC1155Holder, Ownable {
         allowedList[0] = 0xC8df3686b4Afb2BB53e60EAe97EF043FE03Fb829; // wildcard address so any kettle can access
 
         // initialize confidential store
-        Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid"); //note: this is creating a new bid data for every bid, might be good to go back one day and put multiple bids in one bid data store
+        // note: this is creating a new bid data for every bid, might be good to go back one day and put multiple 
+        // bids in one bid data store
+        Suave.Bid memory bid = Suave.newBid(DECRYPTION_CONDITION, allowedList, allowedList, "auctionBid"); 
 
         // save bid in confidential store
         Suave.confidentialStore(bid.id, "auctionBid", abi.encode(_bid));
