@@ -4,7 +4,7 @@ Authored by <a href="https://twitter.com/stephensonmatt">Matt Stephenson</a>, <a
 
 Every few years artists go on tour and try to sell fans tickets at the price they deem fair. And each time they do this, many of those under-priced tickets are intercepted by bots and brokers, costing the artist and her fans vast amounts of money almost certainly in the billions of dollars.
 
-But there’s now an answer: SUIFT, the Safe User Inception For Tickets. SUIFT uses a unique auction mechanism to ensure:
+But there’s now an answer: SUIFT, the <b>S</b>afe <b>U</b>ser <b>I</b>nception For <b>T</b>ickets. SUIFT uses a unique auction mechanism to ensure:
 a. The ticket sales process is trustworthy
 b. The only purchasers of an artist’s tickets should be the true fans, not resellers.
 c. Ticket buyers pay only the artist’s chosen face value of the tickets.
